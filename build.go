@@ -135,6 +135,41 @@ func (tasks Tasks) Do(taskNames ...string) (err error) {
 	return
 }
 
+// RunWithFlags adds gbtb to flagSet, parses flags and runs with them. If flagSet nil
+// fall back to flag.CommandLine
+func (tasks Tasks) RunWithFlags(flagSet *flag.FlagSet, args ...string) error {
+	if flagSet == nil {
+		flagSet = flag.CommandLine
+		if len(args) == 0 {
+			args = os.Args
+		}
+	}
+	FlagsInit(flagSet)
+	if err := flagSet.Parse(args); err != nil {
+		return err
+	}
+	return tasks.Do(flagSet.Args()...)
+}
+
+// MustRunWithFlags adds gbtb to flagSet, parses flags and runs with them. If flagSet nil
+// fall back to flag.CommandLine, if there's an error process exits with status 1
+func (tasks Tasks) MustRunWithFlags(flagSet *flag.FlagSet, args ...string) {
+	if err := tasks.RunWithFlags(flagSet, args...); err != nil {
+		fmt.Printf("%v\n", err)
+		os.Exit(1)
+	}
+}
+
+// Run gbtb with command line arguments
+func (tasks Tasks) Run() error {
+	return tasks.RunWithFlags(nil)
+}
+
+// MustRun gbtb with command line arguments, if there's an error exits process with status 1
+func (tasks Tasks) MustRun() {
+	tasks.MustRunWithFlags(nil)
+}
+
 // FlagsInit adds gbtb flags to flagSet, if flagSet is nil, flags are added
 // to flag.CommandLine
 func FlagsInit(flagSet *flag.FlagSet) {

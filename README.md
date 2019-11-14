@@ -32,31 +32,21 @@ Could be accomplished with:
 package main
 
 import (
-	"log"
-	"os"
-	"os/exec"
-
 	"github.com/Dennor/gbtb"
-	"github.com/bmatcuk/doublestar"
 )
 
 func main() {
-	tasks := gbtb.Tasks{
+	gbtb.Tasks{
 		gbtb.Task{
 			Name:         "all",
 			Dependencies: gbtb.StaticDependencies{"app"},
 		},
 		gbtb.Task{
-			Name: "app",
-			Job: func() error {
-				return gbtb.RunCommand("go", "build", "-o", "app", "main.go")
-			},
+			Name:         "app",
+			Job:          gbtb.GoBuild("main.go", "-o", "app"),
 			Dependencies: gbtb.GlobFiles("**/*.go"),
 		},
-	}
-	if err := tasks.Do(os.Args[1:]...); err != nil {
-		log.Fatalf("%v", err)
-	}
+	}.MustRun()
 }
 ```
 
