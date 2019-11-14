@@ -24,10 +24,19 @@ func fileDependency(fn string) (t time.Time, err error) {
 	return
 }
 
+type TaskLike interface {
+	// Do a tasks along with it's dependencies using Runner
+	Do(Tasks, *Runner) (time.Time, error)
+	// DependsOn is represents dependencies needed for a task
+	DependsOn() Dependencies
+	// Reset marks task as not done
+	Reset()
+}
+
 // TaskGetter interface
 type TaskGetter interface {
 	GetNames() []string
-	GetTask(name string) *Task
+	GetTask(name string) TaskLike
 }
 
 type failedTasks struct {
@@ -63,7 +72,7 @@ func (f *failedTasks) fail(name string) {
 // Tasks is a list of tasks defined by build
 type Tasks []TaskGetter
 
-func (tasks Tasks) getTask(name string) *Task {
+func (tasks Tasks) getTask(name string) TaskLike {
 	for _, tt := range tasks {
 		if t := tt.GetTask(name); t != nil {
 			return t
@@ -85,12 +94,13 @@ func (tasks Tasks) execute(taskNames []string, allNames []string, failedTasks *f
 		if t == nil {
 			return fmt.Errorf("task %s not found", taskNames[i])
 		}
+		tName := taskNames[i]
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			_, err := t.Do(tasks, runner)
 			if err != nil {
-				failedTasks.fail(t.Name)
+				failedTasks.fail(tName)
 			}
 		}()
 	}
@@ -141,7 +151,7 @@ func (tasks Tasks) RunWithFlags(flagSet *flag.FlagSet, args ...string) error {
 	if flagSet == nil {
 		flagSet = flag.CommandLine
 		if len(args) == 0 {
-			args = os.Args
+			args = os.Args[1:]
 		}
 	}
 	FlagsInit(flagSet)

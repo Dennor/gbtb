@@ -50,13 +50,15 @@ func (m *MultiTargetTask) createTask(name string) {
 }
 
 // GetTask for a name
-func (m *MultiTargetTask) GetTask(name string) *Task {
+func (m *MultiTargetTask) GetTask(name string) TaskLike {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	if len(m.tasks) != len(m.Names) {
 		m.init()
 	}
-	if t, ok := m.tasks[name]; ok && t == nil {
+	if t, ok := m.tasks[name]; !ok {
+		return nil
+	} else if t == nil {
 		m.createTask(name)
 	}
 	return m.tasks[name]

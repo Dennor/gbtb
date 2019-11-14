@@ -88,7 +88,7 @@ func (t *Task) Do(tasks Tasks, runner *Runner) (time.Time, error) {
 	}
 	for len(dependencies) > 0 {
 		dep := dependencies[0]
-		var depTask *Task
+		var depTask TaskLike
 		if dep == t.Name {
 			return t.modTime, fmt.Errorf("task %s depends on itself", t.Name)
 		}
@@ -159,11 +159,21 @@ func (t *Task) Do(tasks Tasks, runner *Runner) (time.Time, error) {
 	return t.modTime, t.err
 }
 
+func (t *Task) DependsOn() Dependencies {
+	return t.Dependencies
+}
+
+func (t *Task) Reset() {
+	t.lock.Lock()
+	defer t.lock.Unlock()
+	t.done = false
+}
+
 func (t *Task) GetNames() []string {
 	return []string{t.Name}
 }
 
-func (t *Task) GetTask(name string) *Task {
+func (t *Task) GetTask(name string) TaskLike {
 	if name == t.Name {
 		return t
 	}
