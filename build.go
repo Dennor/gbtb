@@ -138,7 +138,7 @@ func (tasks Tasks) Do(taskNames ...string) (err error) {
 	failedTasks := newFailedTasks()
 	go failedTasks.run()
 	if err = tasks.execute(taskNames, allNames, &failedTasks); err == nil {
-		if len(failedTasks.get()) != 0 {
+		if failedTasks := failedTasks.get(); len(failedTasks) != 0 {
 			err = fmt.Errorf("tasks %v failed", failedTasks)
 		}
 	}
