@@ -36,7 +36,7 @@ import (
 )
 
 func main() {
-	gbtb.Tasks{
+	gbtb.MustRun(
 		gbtb.Task{
 			Name:         "all",
 			Dependencies: gbtb.StaticDependencies{"app"},
@@ -46,7 +46,7 @@ func main() {
 			Job:          gbtb.GoBuild("main.go", "-o", "app"),
 			Dependencies: gbtb.GlobFiles("**/*.go"),
 		},
-	}.MustRun()
+	)
 }
 ```
 

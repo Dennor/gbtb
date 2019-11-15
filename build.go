@@ -188,3 +188,17 @@ func FlagsInit(flagSet *flag.FlagSet) {
 	}
 	flag.IntVar(&Jobs, "jobs", runtime.NumCPU(), "maximum number of jubs that can be run in parallel")
 }
+
+// Run run the tasks using command line args
+func Run(tasks ...TaskGetter) error {
+	var t Tasks
+	t = append(t, tasks...)
+	return t.Run()
+}
+
+// MustRun run the tasks using command line args, exits process on error
+func MustRun(tasks ...TaskGetter) {
+	var t Tasks
+	t = append(t, tasks...)
+	t.MustRun()
+}

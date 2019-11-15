@@ -7,7 +7,7 @@ import (
 )
 
 func main() {
-	gbtb.Tasks{
+	gbtb.MustRun(
 		&gbtb.Task{ // Similar to make, a default task that run's all tasks
 			Name:         "all",
 			Dependencies: gbtb.StaticDependencies{"app", "task-with-output"},
@@ -21,5 +21,5 @@ func main() {
 			Job:          gbtb.GoBuild("main.go", "-o", "app"),
 			Dependencies: gbtb.GlobFiles("**/*.go"),
 		},
-	}.MustRun()
+	)
 }
