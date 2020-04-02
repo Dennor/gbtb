@@ -2,11 +2,15 @@ package gbtb
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"os"
 	"os/exec"
 	"strings"
 	"sync"
+	"time"
+
+	"github.com/buildkite/interpolate"
 )
 
 type syncedIOWriteCloser struct {
@@ -52,7 +56,68 @@ func RunCommand(cmd string, args ...string) error {
 	return PipeCommands(exec.Command(cmd, args...))
 }
 
-// PipeCommands runs a list of commands piping input from previous command to
+func pipeCommands(cmds ...*exec.Cmd) (err error) {
+	defer func() {
+		if err != nil {
+			for _, cmd := range cmds {
+				if cmd.Process != nil {
+					cmd.Process.Kill()
+				}
+			}
+		}
+	}()
+	if len(cmds) == 0 {
+		return nil
+	}
+	first, last := cmds[0], cmds[len(cmds)-1]
+	if last.Stdout == nil {
+		last.Stdout = stdout
+	}
+	in := first.Stdin
+	for _, cmd := range cmds {
+		addEnv(cmd)
+		env := interpolate.NewSliceEnv(cmd.Env)
+		cmd.Path, err = interpolate.Interpolate(env, cmd.Path)
+		if err != nil {
+			return
+		}
+		for i := range cmd.Args {
+			cmd.Args[i], err = interpolate.Interpolate(env, cmd.Args[i])
+			if err != nil {
+				return
+			}
+		}
+		cmd.Stdin = in
+		if cmd != last {
+			pr, pw := io.Pipe()
+			defer pw.Close()
+			cmd.Stdout = pw
+			in = pr
+		}
+		if cmd.Stderr == nil {
+			cmd.Stderr = stderr
+		}
+		if err = cmd.Start(); err != nil {
+			return
+		}
+	}
+	return nil
+}
+
+// PipeCommands check out documentation for PipeCommandsContext
+func PipeCommands(cmds ...*exec.Cmd) (err error) {
+	if err := pipeCommands(cmds...); err != nil {
+		return err
+	}
+	for _, cmd := range cmds {
+		if cerr := cmd.Wait(); cerr != nil && err == nil {
+			err = cerr
+		}
+	}
+	return
+}
+
+// PipeCommandsContext runs a list of commands piping input from previous command to
 // output of the following one.
 // If first command in a list has Stdin set, it will be used as a Stdin for the first
 // command in the pipe. Otherwise reader that will always return io.EOF will be used.
@@ -67,34 +132,36 @@ func RunCommand(cmd string, args ...string) error {
 // except for the fact that atleast one will be returned
 // Function appends current environment flags to command without overriding those
 // already defined.
-func PipeCommands(cmds ...*exec.Cmd) (err error) {
-	if len(cmds) == 0 {
-		return nil
+// On context done function attempts to terminate proccess with os.Interrupt, if process
+// does not terminate in 10 seconds, it gets killed.
+func PipeCommandsContext(ctx context.Context, cmds ...*exec.Cmd) (err error) {
+	if err := pipeCommands(cmds...); err != nil {
+		return err
 	}
-	first, last := cmds[0], cmds[len(cmds)-1]
-	if last.Stdout == nil {
-		last.Stdout = stdout
-	}
-	in := first.Stdin
-	for _, cmd := range cmds {
-		addEnv(cmd)
-		cmd.Stdin = in
-		if cmd != last {
-			pr, pw := io.Pipe()
-			defer pw.Close()
-			cmd.Stdout = pw
-			in = pr
+	wait := make(chan error)
+	go func() {
+		var err error
+		for _, cmd := range cmds {
+			if cerr := cmd.Wait(); cerr != nil && err == nil {
+				err = cerr
+			}
 		}
-		if cmd.Stderr == nil {
-			cmd.Stderr = stderr
+		wait <- err
+	}()
+	select {
+	case err = <-wait:
+	case <-ctx.Done():
+		for _, cmd := range cmds {
+			cmd.Process.Signal(os.Interrupt)
 		}
-		if err := cmd.Start(); err != nil {
-			return err
-		}
-	}
-	for _, cmd := range cmds {
-		if cerr := cmd.Wait(); cerr != nil && err == nil {
-			err = cerr
+		timer := time.NewTimer(time.Second * 10)
+		select {
+		case <-timer.C:
+			for _, cmd := range cmds {
+				cmd.Process.Kill()
+			}
+			err = <-wait
+		case err = <-wait:
 		}
 	}
 	return
@@ -128,4 +195,15 @@ func Output(cmd string, args ...string) ([]byte, error) {
 // MustOutput runs a command and returns it's stdout panicing on error
 func MustOutput(cmd string, args ...string) []byte {
 	return MustOutputPipe(exec.Command(cmd, args...))
+}
+
+// RunStoppable Runs a command with an ability to stop it
+func RunStoppable(stop chan struct{}, name string, args ...string) error {
+	ctx, cancel := context.WithCancel(context.Background())
+	cmd := exec.Command(name, args...)
+	go func() {
+		<-stop
+		cancel()
+	}()
+	return PipeCommandsContext(ctx, cmd)
 }

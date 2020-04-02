@@ -10,10 +10,12 @@ func Go(subCommand string, args ...string) Job {
 
 // GoBuild is a `go build` job
 func GoBuild(pkg string, opts ...string) Job {
+	opts = append(opts, pkg)
 	return Go("build", opts...)
 }
 
 // GoRun is a `go run` job
-func GoRun(pkg string, opts ...string) Job {
+func GoRun(run []string, opts ...string) Job {
+	opts = append(opts, run...)
 	return Go("run", opts...)
 }

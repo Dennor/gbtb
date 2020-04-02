@@ -19,3 +19,10 @@ func CommandJobPipe(cmds ...*exec.Cmd) Job {
 
 // MultiTargetJob for a multitarget task
 type MultiTargetJob func(string) error
+
+// StoppableCommandJob is a convienience function that runs a stoppable job
+func StoppableCommandJob(cmd string, args ...string) func(chan struct{}) error {
+	return func(stop chan struct{}) error {
+		return RunStoppable(stop, cmd, args...)
+	}
+}
