@@ -39,14 +39,19 @@ var (
 
 func addEnv(cmd *exec.Cmd) {
 	envs := append([]string{}, os.Environ()...)
-	for len(cmd.Env) > 0 {
-		ekey := cmd.Env[0][:len(strings.Split(cmd.Env[0], "=")[0])+1]
-		for i, e := range envs {
-			if strings.HasPrefix(e, ekey) {
-				envs[i] = cmd.Env[0]
+	for _, ue := range cmd.Env {
+		ekey := ue[:strings.Index(ue, "=")+1]
+		pop := -1
+		for i := 0; i < len(envs) && pop == -1; i++ {
+			if strings.HasPrefix(envs[i], ekey) {
+				pop = i
 			}
 		}
-		cmd.Env = cmd.Env[1:]
+		if pop != -1 {
+			copy(envs[pop:], envs[pop+1:])
+			envs = envs[:len(envs)-1]
+		}
+		envs = append(envs, ue)
 	}
 	cmd.Env = envs
 }
